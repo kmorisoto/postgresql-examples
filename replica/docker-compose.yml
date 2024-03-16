@@ -1,0 +1,47 @@
+version: '3.8'
+x-db:
+  &db
+  image: postgres:16.2
+  user: postgres
+
+services:
+  db:
+    <<: *db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - ./00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
+    command: |
+      postgres 
+      -c wal_level=replica 
+      -c hot_standby=on 
+      -c max_wal_senders=10 
+      -c max_replication_slots=10 
+      -c hot_standby_feedback=on
+      -c max_connections=200
+
+  db_replica:
+    <<: *db
+    ports:
+      - "5433:5432"
+    environment:
+      PGUSER: replicator
+      PGPASSWORD: password
+    command: |
+      bash -c "
+      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=db --port=5432
+      do
+      echo 'Waiting for primary to connect...'
+      sleep 1s
+      done
+      echo 'Backup done, starting replica...'
+      echo 'max_connections = 2000' >> /var/lib/postgresql/data/postgresql.conf
+      chmod 0700 /var/lib/postgresql/data 
+      postgres
+      "
+    depends_on:
+      - db
