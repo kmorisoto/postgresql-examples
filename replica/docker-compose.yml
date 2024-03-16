@@ -5,7 +5,7 @@ x-db:
   user: postgres
 
 services:
-  db:
+  db_primary:
     <<: *db
     ports:
       - "5432:5432"
@@ -33,7 +33,7 @@ services:
       PGPASSWORD: password
     command: |
       bash -c "
-      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=db --port=5432
+      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=db_primary --port=5432
       do
       echo 'Waiting for primary to connect...'
       sleep 1s
@@ -44,4 +44,4 @@ services:
       postgres
       "
     depends_on:
-      - db
+      - db_primary
